@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Turn</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app" data-mode="library">
+      <header id="titlebar" data-tauri-drag-region>
+        <div class="tb-side tb-left" data-tauri-drag-region>
+          <button id="btn-library" class="icon-btn" data-tip="书架  Ctrl+W" aria-label="返回书架"></button>
+        </div>
+        <div id="tb-title" class="tb-title" data-tauri-drag-region></div>
+        <div class="tb-side tb-right" data-tauri-drag-region>
+          <button id="btn-open" class="icon-btn" data-tip="打开  Ctrl+O" aria-label="打开文件"></button>
+          <button id="btn-toc" class="icon-btn" data-tip="目录  T" aria-label="目录"></button>
+          <button id="btn-settings" class="icon-btn" data-tip="排版  S" aria-label="排版设置"></button>
+          <div class="win-controls">
+            <button id="win-min" class="win-btn" aria-label="最小化"></button>
+            <button id="win-max" class="win-btn" aria-label="最大化"></button>
+            <button id="win-close" class="win-btn close" aria-label="关闭"></button>
+          </div>
+        </div>
+      </header>
+
+      <main id="library" tabindex="-1"></main>
+
+      <section id="reader">
+        <div id="view-host"></div>
+        <div id="meter" class="meter" aria-hidden="true">
+          <div id="meter-label" class="meter-label"></div>
+          <div class="meter-track"><div id="meter-fill" class="meter-fill"></div></div>
+        </div>
+        <footer id="footer">
+          <span id="ft-chapter" class="ft-chapter"></span>
+          <span id="ft-progress" class="ft-progress"></span>
+        </footer>
+        <div class="hot-zone top" data-zone="top"></div>
+        <div class="hot-zone bottom" data-zone="bottom"></div>
+      </section>
+
+      <div id="scrim"></div>
+      <aside id="toc" class="drawer" aria-label="目录">
+        <nav id="toc-list" class="toc-list"></nav>
+      </aside>
+      <div id="settings" class="popover" role="dialog" aria-label="排版设置"></div>
+      <div id="tuning" class="tuning"></div>
+      <div id="drop" class="drop"><div class="drop-card">松开以打开</div></div>
+      <div id="toast" class="toast" role="status"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

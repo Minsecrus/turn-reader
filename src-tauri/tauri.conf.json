@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Turn",
+  "version": "0.1.0",
+  "identifier": "app.turn.reader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Turn",
+        "width": 1100,
+        "height": 780,
+        "minWidth": 520,
+        "minHeight": 420,
+        "center": true,
+        "decorations": false,
+        "shadow": true,
+        "visible": false,
+        "backgroundColor": "#FDFDFC"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline' blob:",
+        "img-src": "'self' blob: data:",
+        "font-src": "'self' blob: data:",
+        "media-src": "'self' blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost http://turn.localhost",
+        "frame-src": "'self' blob:",
+        "object-src": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline' blob:",
+        "img-src": "'self' blob: data:",
+        "font-src": "'self' blob: data:",
+        "media-src": "'self' blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost http://turn.localhost ws://localhost:1420",
+        "frame-src": "'self' blob:",
+        "object-src": "'none'"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "shortDescription": "Turn 翻篇 — 极简 EPUB 阅读器",
+    "fileAssociations": [
+      {
+        "ext": ["epub"],
+        "mimeType": "application/epub+zip",
+        "name": "EPUB",
+        "description": "EPUB 电子书",
+        "role": "Viewer"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese", "English"],
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
