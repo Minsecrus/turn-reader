@@ -42,3 +42,12 @@ jobs:
           releaseBody: 下载 `.exe` 安装包，双击安装即可。
           releaseDraft: true
           prerelease: false
+
+      # Keep the installer as a run artifact too, so it can be downloaded from
+      # the run page even if creating the release fails.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Turn-windows-x64-setup
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
