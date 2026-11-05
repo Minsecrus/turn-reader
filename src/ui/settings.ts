@@ -106,12 +106,11 @@ export class SettingsPanel {
         hint ? h('kbd', {}, hint) : null,
         h('span', { class: 'menu-link-chevron', html: icons.chevronRight }),
       )
-    const subHead = (title: string) =>
+    const subHead = () =>
       h(
         'div',
         { class: 'sub-head' },
         h('button', { class: 'back-btn', 'aria-label': '返回', html: icons.chevronLeft, onClick: () => this.show('main') }),
-        h('div', { class: 'sub-title' }, title),
       )
 
     const main = h(
@@ -151,8 +150,8 @@ export class SettingsPanel {
 
     const keys = h(
       'div',
-      { class: 'page sub', 'aria-hidden': 'true' },
-      subHead('键盘快捷键'),
+      { class: 'page sub', 'aria-hidden': 'true', 'aria-label': '键盘快捷键' },
+      subHead(),
       ...SHORTCUTS.map(({ group, items }) =>
         h(
           'section',
@@ -169,8 +168,8 @@ export class SettingsPanel {
     void opts.version.then(v => (version.textContent = `版本 ${v}`)).catch(() => {})
     const about = h(
       'div',
-      { class: 'page sub', 'aria-hidden': 'true' },
-      subHead('关于'),
+      { class: 'page sub about-page', 'aria-hidden': 'true', 'aria-label': '关于' },
+      subHead(),
       h(
         'div',
         { class: 'about' },
