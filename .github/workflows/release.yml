@@ -35,6 +35,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # Call the CLI directly: the package.json "tauri" script runs `tauri dev`.
+          tauriScript: npx tauri
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: Turn ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseBody: 下载 `.exe` 安装包，双击安装即可。
