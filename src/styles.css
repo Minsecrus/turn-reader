@@ -1151,7 +1151,7 @@ foliate-view {
   display: none;
 }
 [data-platform='android'] .meter {
-  bottom: calc(30px + var(--inset-bottom, 0px));
+  bottom: calc(50px + var(--inset-bottom, 0px));
 }
 [data-platform='android'] .meter[data-dir='prev'] {
   top: calc(60px + var(--inset-top, 0px));
