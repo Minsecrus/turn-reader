@@ -3,7 +3,7 @@ import type { Book } from 'foliate-js/view.js'
 import { relativizeCSS, relativizeHTML } from './css-scale'
 import { ipc } from './ipc'
 
-// WebView2 serves custom schemes at http://<scheme>.localhost
+// WebView2 and Android's WebView both serve custom schemes at http://<scheme>.localhost
 const ORIGIN = 'http://turn.localhost'
 const HTML_TYPES = new Set(['application/xhtml+xml', 'text/html'])
 
@@ -103,7 +103,9 @@ const contributor = (x: unknown): string => {
 
 export function bookInfo(book: Book, path: string) {
   const meta = book.metadata ?? {}
-  const fallback = path.split(/[\\/]/).pop()?.replace(/\.epub$/i, '') ?? '未命名'
+  const name = path.split(/[\\/]/).pop()?.replace(/\.epub$/i, '')
+  // Imported copies (Android) are named by content hash, which is no title.
+  const fallback = name && !/^[0-9a-f]{16}$/.test(name) ? name : '未命名'
   return {
     title: langString(meta.title).trim() || fallback,
     author: contributor(meta.author).trim(),

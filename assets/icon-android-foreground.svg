@@ -1,0 +1,14 @@
+<!-- Foreground layer of the Android adaptive icon: the glyph of icon.svg without
+     its rounded tile, scaled to sit inside the 66dp safe zone. The background
+     layer is the tile color (#1F1E1C, see res/values/ic_launcher_background.xml). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <g transform="translate(512 512) scale(.84) translate(-512 -512)">
+    <path d="M300 268h300c18 0 32 14 32 32v424c0 18-14 32-32 32H300c-18 0-32-14-32-32V300c0-18 14-32 32-32z" fill="#F3EEE4"/>
+    <path d="M632 300c0-18 14-32 32-32h60c18 0 32 14 32 32v424c0 18-14 32-32 32h-60c-18 0-32-14-32-32z" fill="#F3EEE4" opacity=".42"/>
+    <path d="M520 756c78-6 136-44 172-112l-60 4c-30 56-66 90-112 108z" fill="#C8A86B"/>
+    <rect x="332" y="352" width="220" height="22" rx="11" fill="#1F1E1C" opacity=".28"/>
+    <rect x="332" y="414" width="236" height="22" rx="11" fill="#1F1E1C" opacity=".28"/>
+    <rect x="332" y="476" width="200" height="22" rx="11" fill="#1F1E1C" opacity=".28"/>
+    <rect x="332" y="538" width="226" height="22" rx="11" fill="#1F1E1C" opacity=".28"/>
+  </g>
+</svg>

@@ -3,14 +3,17 @@
 //! The frontend never receives the whole file. It asks for the entry list once
 //! (`open_book`), then fetches individual entries on demand from
 //! `http://turn.localhost/<book-id>/<entry-path>` (how WebView2 exposes custom
-//! schemes). Each request is answered from a worker thread so a large image
-//! never blocks the UI.
+//! schemes, on Windows and Android alike). Each request is answered from a
+//! worker thread so a large image never blocks the UI.
+//!
+//! On Android, books arrive as `content://` URIs that are only readable for a
+//! while, so they are first copied into the app's own storage (`import_book`).
 
 use std::{
     collections::HashMap,
     fs::File,
     io::{BufReader, Read},
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex, RwLock,
@@ -21,7 +24,7 @@ use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use tauri::{
     http::{header, Request, Response, StatusCode},
-    Manager, Runtime, State, UriSchemeContext, UriSchemeResponder,
+    AppHandle, Manager, Runtime, State, UriSchemeContext, UriSchemeResponder,
 };
 use zip::ZipArchive;
 
@@ -161,4 +164,120 @@ pub fn epub_arg<I: IntoIterator<Item = String>>(args: I) -> Option<String> {
     args.into_iter()
         .skip(1)
         .find(|a| a.to_ascii_lowercase().ends_with(".epub") && Path::new(a).is_file())
+}
+
+// ── Imported books (Android) ────────────────────────────────────────────────
+
+/// Where imported books live. Turn owns everything in here.
+fn library_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("books"))
+}
+
+#[cfg(target_os = "android")]
+/// FNV-1a: a stable content hash, so importing the same book twice reuses one
+/// copy (and its reading position).
+struct Fnv(u64);
+
+#[cfg(target_os = "android")]
+impl Fnv {
+    fn new() -> Self {
+        Self(0xcbf2_9ce4_8422_2325)
+    }
+    fn update(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+fn import<R: Runtime>(app: &AppHandle<R>, uri: &str) -> Result<String, String> {
+    use std::io::Write;
+    use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
+
+    let url = tauri::Url::parse(uri).map_err(|e| e.to_string())?;
+    let source = match url.scheme() {
+        "file" => FilePath::Path(url.to_file_path().map_err(|_| "无效的文件路径".to_string())?),
+        _ => FilePath::Url(url),
+    };
+    let mut opts = OpenOptions::new();
+    opts.read(true);
+    let mut src = app.fs().open(source, opts).map_err(|e| format!("无法读取文件：{e}"))?;
+
+    let dir = library_dir(app)?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let tmp = dir.join(format!(".import-{}", NEXT.fetch_add(1, Ordering::Relaxed)));
+    let mut copy = || -> std::io::Result<u64> {
+        let mut out = File::create(&tmp)?;
+        let mut hash = Fnv::new();
+        let mut buf = vec![0; 256 * 1024];
+        loop {
+            let n = src.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hash.update(&buf[..n]);
+            out.write_all(&buf[..n])?;
+        }
+        out.sync_all()?;
+        Ok(hash.0)
+    };
+    let hash = match copy() {
+        Ok(h) => h,
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(format!("无法读取文件：{e}"));
+        }
+    };
+
+    let is_epub = File::open(&tmp)
+        .ok()
+        .and_then(|f| ZipArchive::new(BufReader::new(f)).ok())
+        .is_some_and(|mut a| a.by_name("META-INF/container.xml").is_ok());
+    if !is_epub {
+        let _ = std::fs::remove_file(&tmp);
+        return Err("不是有效的 EPUB 文件".into());
+    }
+
+    let dest = dir.join(format!("{hash:016x}.epub"));
+    if dest.is_file() {
+        let _ = std::fs::remove_file(&tmp);
+    } else {
+        std::fs::rename(&tmp, &dest).map_err(|e| e.to_string())?;
+    }
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+/// Copies a book handed over by the system (`content://` or `file://` URI) into
+/// Turn's storage and returns its path.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn import_book<R: Runtime>(app: AppHandle<R>, uri: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || import(&app, &uri))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Desktop opens files where they are; there is nothing to import.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn import_book(uri: String) -> Result<String, String> {
+    Ok(uri)
+}
+
+/// Called when a book leaves the bookshelf. Deletes it only if it is Turn's own
+/// imported copy; files elsewhere (all of them on desktop) are never touched.
+#[tauri::command]
+pub fn forget_book<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
+    let path = Path::new(&path);
+    let ours = path.parent() == Some(library_dir(&app)?.as_path())
+        && path.extension().is_some_and(|e| e == "epub");
+    if ours {
+        match std::fs::remove_file(path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.to_string()),
+            _ => {}
+        }
+    }
+    Ok(())
 }

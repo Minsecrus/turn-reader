@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <title>Turn</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
@@ -11,11 +11,11 @@
       <header id="titlebar" data-tauri-drag-region>
         <div class="tb-side tb-left" data-tauri-drag-region>
           <button id="btn-library" class="icon-btn" data-tip="书架  Ctrl+W" aria-label="返回书架"></button>
+          <button id="btn-toc" class="icon-btn" data-tip="目录  T" aria-label="目录"></button>
         </div>
         <div id="tb-title" class="tb-title" data-tauri-drag-region></div>
         <div class="tb-side tb-right" data-tauri-drag-region>
           <button id="btn-open" class="icon-btn" data-tip="打开  Ctrl+O" aria-label="打开文件"></button>
-          <button id="btn-toc" class="icon-btn" data-tip="目录  T" aria-label="目录"></button>
           <button id="btn-settings" class="icon-btn" data-tip="排版  S" aria-label="排版设置"></button>
           <div class="win-controls">
             <button id="win-min" class="win-btn" aria-label="最小化"></button>

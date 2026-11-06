@@ -1,3 +1,4 @@
+import { touch } from '../lib/platform'
 import type { BookRecord } from '../lib/store'
 import { h } from './dom'
 import { icons } from './icons'
@@ -6,6 +7,8 @@ export interface LibraryActions {
   open(path: string): void
   remove(path: string): void
   pick(): void
+  /** Touch: long-press on a book. */
+  menu?(book: BookRecord): void
 }
 
 const hue = (s: string) => {
@@ -37,6 +40,11 @@ function card(b: BookRecord, on: LibraryActions) {
       title: b.path,
       'aria-label': b.title,
       onClick: open,
+      onContextmenu: (e: MouseEvent) => {
+        if (!on.menu) return
+        e.preventDefault()
+        on.menu(b)
+      },
       onKeydown: (e: KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
@@ -73,9 +81,13 @@ export function renderLibrary(root: HTMLElement, books: BookRecord[], on: Librar
         'div',
         { class: 'empty' },
         h('div', { html: icons.book }),
-        h('div', { class: 'empty-title' }, '把 EPUB 拖到这里'),
-        h('div', {}, '或者按 ', h('kbd', {}, 'Ctrl'), ' + ', h('kbd', {}, 'O'), ' 打开文件'),
-        h('button', { class: 'primary', onClick: () => on.pick() }, '打开文件'),
+        ...(touch
+          ? [h('div', { class: 'empty-title' }, '点击右上角加号，添加第一本书')]
+          : [
+              h('div', { class: 'empty-title' }, '把 EPUB 拖到这里'),
+              h('div', {}, '或者按 ', h('kbd', {}, 'Ctrl'), ' + ', h('kbd', {}, 'O'), ' 打开文件'),
+              h('button', { class: 'primary', onClick: () => on.pick() }, '打开文件'),
+            ]),
       ),
     )
   } else {

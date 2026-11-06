@@ -85,6 +85,8 @@ export interface SettingsPanelOptions {
   onChange(patch: Patch): void
   openUrl(url: string): void
   version: Promise<string>
+  /** Show the keyboard shortcuts page (not on touch devices). */
+  shortcuts: boolean
 }
 
 export class SettingsPanel {
@@ -97,6 +99,12 @@ export class SettingsPanel {
   constructor(root: HTMLElement, opts: SettingsPanelOptions) {
     this.onChange = opts.onChange
     const fonts = fontChoices()
+    const fontOptions: Option<Settings['font']>[] = [
+      { value: 'book', label: '原书' },
+      { value: 'serif', label: fonts.serif.label, font: fonts.serif.css },
+      { value: 'sans', label: fonts.sans.label, font: fonts.sans.css },
+    ]
+    if (fonts.kai) fontOptions.push({ value: 'kai', label: fonts.kai.label, font: fonts.kai.css })
     const link = (page: Page, icon: string, label: string, hint?: string) =>
       h(
         'button',
@@ -122,12 +130,7 @@ export class SettingsPanel {
         { value: 'paper', label: '纸张', swatch: PALETTES.paper.bg },
         { value: 'dark', label: '深色', swatch: PALETTES.dark.bg },
       ]),
-      this.#seg('字体', 'font', [
-        { value: 'book', label: '原书' },
-        { value: 'serif', label: fonts.serif.label, font: fonts.serif.css },
-        { value: 'sans', label: fonts.sans.label, font: fonts.sans.css },
-        { value: 'kai', label: fonts.kai.label, font: fonts.kai.css },
-      ]),
+      this.#seg('字体', 'font', fontOptions),
       this.#stepper(),
       this.#seg('行距', 'lineHeight', [
         { value: 1.5, label: '紧凑' },
@@ -144,7 +147,7 @@ export class SettingsPanel {
         { value: 'scrolled', label: '滚动' },
       ]),
       h('div', { class: 'menu-sep' }),
-      link('keys', icons.keyboard, '键盘快捷键', '?'),
+      opts.shortcuts ? link('keys', icons.keyboard, '键盘快捷键', '?') : null,
       link('about', icons.info, '关于'),
     )
 

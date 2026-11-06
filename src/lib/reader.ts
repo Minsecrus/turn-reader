@@ -2,6 +2,7 @@ import 'foliate-js/view.js'
 import type { RelocateDetail, TocItem, View } from 'foliate-js/view.js'
 import { loadEpub, type LoadedBook } from './epub'
 import { ChapterOverscroll, type Dir } from './overscroll'
+import { android, insets } from './platform'
 import { store, type Settings } from './store'
 import { bookCSS, maxInlineSize, reducedMotion, resolveTheme } from './typography'
 import { PagedWheel, WheelTracker } from './wheel'
@@ -43,7 +44,12 @@ export class Reader {
   #titles = new Map<number, string>()
   #index = -1
   #shift = 0
-  #meterDir: Dir | 0 = 0
+  /** What the meter label currently says, to skip redundant DOM writes. */
+  #meterKey = ''
+  /** A touch drag in scrolled mode, tracked to pull past the chapter's end. */
+  #pull: { y: number; dir: Dir | 0; distance: number } | null = null
+  /** The meter is being driven by touch (vs. the wheel), which changes its wording. */
+  #byTouch = false
   #zoomAccum = 0
   #clickTimer: number | undefined
 
@@ -66,6 +72,7 @@ export class Reader {
     el.host.addEventListener('click', e => {
       if (e.target === el.host || e.target === this.view) this.#onClick(e, null)
     })
+    this.#listenTouch(el.host)
   }
 
   get tuning() {
@@ -137,7 +144,8 @@ export class Reader {
     if (!v.isFixedLayout) {
       setAttr(r, 'max-inline-size', `${maxInlineSize(s)}px`)
       setAttr(r, 'max-column-count', '2')
-      setAttr(r, 'margin', '52px')
+      // Top and bottom margin. On Android the page runs under the system bars.
+      setAttr(r, 'margin', android ? `${Math.max(44, Math.max(insets.top, insets.bottom) + 16)}px` : '52px')
       setAttr(r, 'gap', '6%')
       if (reducedMotion()) r.removeAttribute('animated')
       else setAttr(r, 'animated', '')
@@ -312,17 +320,22 @@ export class Reader {
     const v = this.view
     if (!dir || p <= 0) {
       meter.classList.remove('show', 'full')
-      this.#meterDir = 0
+      this.#meterKey = ''
       if (v && !this.#transitioning) {
         v.style.transform = ''
         this.#shift = 0
       }
       return
     }
-    if (this.#meterDir !== dir) {
-      this.#meterDir = dir
+    // Wheel crosses as soon as the meter fills; touch crosses on release.
+    const hint = !this.#byTouch
+      ? dir > 0 ? '继续滚动' : '继续上滚'
+      : p >= 1 ? '松开进入' : dir > 0 ? '继续上拉' : '继续下拉'
+    const key = `${dir}${hint}`
+    if (this.#meterKey !== key) {
+      this.#meterKey = key
       meter.dataset.dir = dir > 0 ? 'next' : 'prev'
-      meterLabel.textContent = (dir > 0 ? '继续滚动 · ' : '继续上滚 · ') + this.#title(this.#adjacent(dir), dir)
+      meterLabel.textContent = `${hint} · ${this.#title(this.#adjacent(dir), dir)}`
     }
     meter.classList.add('show')
     meter.classList.toggle('full', p >= 1)
@@ -354,6 +367,7 @@ export class Reader {
     doc.addEventListener('wheel', e => this.#onWheel(e), { passive: false })
     doc.addEventListener('click', e => this.#onClick(e, doc))
     doc.addEventListener('dblclick', () => clearTimeout(this.#clickTimer))
+    this.#listenTouch(doc)
   }
 
   #onRelocate(detail: RelocateDetail) {
@@ -377,6 +391,7 @@ export class Reader {
       }
       return
     }
+    this.#byTouch = false
     const s = this.#wheel.feed(e)
     if (this.#transitioning) {
       e.preventDefault()
@@ -402,12 +417,67 @@ export class Reader {
     const x = (frame?.getBoundingClientRect().left ?? 0) + e.clientX
     const w = window.innerWidth
     const v = this.view
+    // A finger is less precise than a mouse, so its page-turn zones are wider.
+    const byTouch = (e as PointerEvent).pointerType === 'touch'
+    const edge = byTouch ? 0.3 : 0.2
     if (v && !this.scrolled) {
-      if (x < w * 0.2) return void this.#run(() => v.goLeft())
-      if (x > w * 0.8) return void this.#run(() => v.goRight())
+      if (x < w * edge) return void this.#run(() => v.goLeft())
+      if (x > w * (1 - edge)) return void this.#run(() => v.goRight())
     }
-    // Middle click toggles the chrome, delayed so a double-click (word selection) cancels it.
+    // Touch selects words by long-press, so a tap can act at once. A mouse
+    // click waits, so that a double-click (word selection) cancels it.
     clearTimeout(this.#clickTimer)
-    this.#clickTimer = window.setTimeout(() => this.on.toggleChrome(), 230)
+    if (byTouch) this.on.toggleChrome()
+    else this.#clickTimer = window.setTimeout(() => this.on.toggleChrome(), 230)
+  }
+
+  // ── Touch: pull past the chapter's end (scrolled mode) ────────────────────
+
+  #listenTouch(target: EventTarget) {
+    const opts = { passive: true }
+    target.addEventListener('touchstart', e => this.#onTouchStart(e as TouchEvent), opts)
+    target.addEventListener('touchmove', e => this.#onTouchMove(e as TouchEvent), opts)
+    target.addEventListener('touchend', () => this.#onTouchEnd(true), opts)
+    target.addEventListener('touchcancel', () => this.#onTouchEnd(false), opts)
+  }
+
+  #onTouchStart(e: TouchEvent) {
+    const one = e.touches.length === 1
+    this.#pull = one && this.scrolled && !this.#transitioning ? { y: e.touches[0].screenY, dir: 0, distance: 0 } : null
+  }
+
+  #onTouchMove(e: TouchEvent) {
+    const p = this.#pull
+    if (!p) return
+    if (e.touches.length !== 1 || this.#transitioning) {
+      this.#pull = null
+      return this.#overscroll.reset()
+    }
+    const y = e.touches[0].screenY
+    const dy = p.y - y // > 0: the finger moves up, toward what comes next
+    p.y = y
+    if (!dy) return
+    if (!p.dir) {
+      // Native scrolling until the boundary; past it, the drag pulls the meter.
+      const dir: Dir = dy > 0 ? 1 : -1
+      if (!(dir > 0 ? this.#atEnd() : this.#atStart())) return
+      p.dir = dir
+    }
+    p.distance += dy * p.dir
+    this.#byTouch = true
+    if (p.distance <= 0) {
+      p.dir = 0
+      p.distance = 0
+      return this.#overscroll.reset()
+    }
+    this.#overscroll.pull(p.dir, p.distance)
+  }
+
+  #onTouchEnd(lifted: boolean) {
+    const p = this.#pull
+    if (!p?.dir) return void (this.#pull = null)
+    this.#pull = null
+    if (lifted) this.#overscroll.release()
+    else this.#overscroll.reset()
   }
 }

@@ -47,8 +47,14 @@ export const FONT_SIZE_MIN = 14
 export const FONT_SIZE_MAX = 30
 const MAX_BOOKS = 60
 
-/** Windows paths are case-insensitive and accept both separators. */
+/**
+ * Windows paths are case-insensitive and accept both separators. (On Android
+ * every path is Turn's own lowercase `<hash>.epub`, so this is harmless there.)
+ */
 export const pathKey = (p: string) => p.replaceAll('/', '\\').toLowerCase()
+
+/** Off the bookshelf: an imported copy (Android) is deleted, other files are left alone. */
+const forget = (path: string) => void ipc.forgetBook(path).catch(e => console.error('Failed to forget book', e))
 
 class Store {
   settings: Settings = { ...DEFAULT_SETTINGS }
@@ -90,7 +96,9 @@ class Store {
       ...patch,
       lastRead: Date.now(),
     }
-    this.books = [rec, ...this.books.filter(b => b !== existing)].slice(0, MAX_BOOKS)
+    const books = [rec, ...this.books.filter(b => b !== existing)]
+    this.books = books.slice(0, MAX_BOOKS)
+    for (const b of books.slice(MAX_BOOKS)) forget(b.path)
     this.save()
     return rec
   }
@@ -106,6 +114,7 @@ class Store {
   remove(path: string) {
     const key = pathKey(path)
     this.books = this.books.filter(b => pathKey(b.path) !== key)
+    forget(path)
     if (this.lastOpen && pathKey(this.lastOpen) === key) this.lastOpen = null
     this.save()
   }

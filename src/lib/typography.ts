@@ -1,3 +1,4 @@
+import { android } from './platform'
 import type { FontKey, Settings, ThemeKey, WidthKey } from './store'
 
 export type ResolvedTheme = 'light' | 'paper' | 'dark'
@@ -55,10 +56,26 @@ const firstInstalled = (families: string[], fallback: string) =>
 
 const stack = (...families: string[]) => families.map(f => (/^[a-z-]+$/.test(f) ? f : `"${f}"`)).join(', ')
 
-let fonts: Record<Exclude<FontKey, 'book'>, { label: string; css: string }> | null = null
+export interface FontChoice {
+  label: string
+  css: string
+}
+
+/** Kai is only offered where a Kai font exists (always on Windows, rarely on Android). */
+let fonts: { serif: FontChoice; sans: FontChoice; kai: FontChoice | null } | null = null
 
 export function fontChoices() {
   if (fonts) return fonts
+  if (android) {
+    // Android's generic families map Chinese to Noto Serif / Sans CJK.
+    const kai = ['LXGW WenKai', 'LXGW WenKai Screen', '霞鹜文楷'].find(installed)
+    fonts = {
+      serif: { label: '宋体', css: 'serif' },
+      sans: { label: '黑体', css: 'sans-serif' },
+      kai: kai ? { label: '楷体', css: stack(kai, 'serif') } : null,
+    }
+    return fonts
+  }
   const serif = firstInstalled(
     ['Source Han Serif SC', 'Source Han Serif CN', 'Noto Serif SC', 'Noto Serif CJK SC', '思源宋体'],
     'SimSun',
@@ -71,6 +88,8 @@ export function fontChoices() {
   }
   return fonts
 }
+
+const fontCSS = (key: Exclude<FontKey, 'book'>) => (fontChoices()[key] ?? fontChoices().serif).css
 
 /** Used when the book doesn't specify a font: a good serif if one is installed, else YaHei. */
 function fallbackFamily() {
@@ -86,7 +105,7 @@ function fallbackFamily() {
  */
 export function bookCSS(s: Settings, theme: ResolvedTheme): [string, string] {
   const p = PALETTES[theme]
-  const font = s.font === 'book' ? null : fontChoices()[s.font].css
+  const font = s.font === 'book' ? null : fontCSS(s.font)
   // In tinted and dark themes, books that hardcode colors become unreadable,
   // so those colors are neutralized. In the light theme the book's colors stay.
   const neutralize = theme !== 'light'

@@ -3,6 +3,7 @@ const svg = (body: string, size = 18) =>
 
 export const icons = {
   library: svg('<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H8v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M8 4h3.5v16H8"/><path d="m14.2 5.2 2.9-.8 3.6 13.6-2.9.8z"/>'),
+  add: svg('<path d="M12 5v14M5 12h14"/>'),
   open: svg('<path d="M4 7.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6.2L9.6 5H6a2 2 0 0 0-2 2.5"/>'),
   toc: svg('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6" fill="currentColor"/><circle cx="4.5" cy="12" r=".6" fill="currentColor"/><circle cx="4.5" cy="18" r=".6" fill="currentColor"/>'),
   type: svg('<path d="M3.5 18 8 6h1l4.5 12"/><path d="M5.2 14h6.6"/><path d="M15 11.2c.7-.8 1.6-1.2 2.7-1.2 1.8 0 2.8 1 2.8 2.8V18"/><path d="M20.5 14.2c-.8-.3-1.6-.4-2.4-.4-1.7 0-3 .8-3 2.2 0 1.2.9 2 2.3 2 1.4 0 2.6-.8 3.1-2"/>'),

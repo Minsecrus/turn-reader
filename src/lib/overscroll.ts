@@ -9,6 +9,9 @@
  *  - Stopping for `idleMs` drains the meter over `decayMs`, so separate small
  *    nudges never add up.
  *  - Reversing direction cancels immediately and lets native scrolling continue.
+ *
+ * Touch works like pull-to-refresh instead: dragging past the boundary fills
+ * the meter, and letting go when it's full opens the chapter (`pull`/`release`).
  */
 
 import type { WheelSample } from './wheel'
@@ -24,6 +27,8 @@ export interface OverscrollTuning {
   decayMs: number
   /** Max rubber-band offset of the page (px). */
   maxShift: number
+  /** Touch: drag distance past the boundary that fills the meter (px). */
+  pullDistance: number
 }
 
 export const DEFAULT_TUNING: OverscrollTuning = {
@@ -32,6 +37,7 @@ export const DEFAULT_TUNING: OverscrollTuning = {
   idleMs: 260,
   decayMs: 320,
   maxShift: 44,
+  pullDistance: 150,
 }
 
 export type Dir = 1 | -1
@@ -89,6 +95,24 @@ export class ChapterOverscroll {
     clearTimeout(this.#idle)
     if (this.#progress >= 1) void this.#fire(want)
     else this.#idle = window.setTimeout(() => this.#drain(this.tuning.decayMs), this.tuning.idleMs)
+  }
+
+  /** Touch: the finger is `distance` px past the boundary in direction `dir` (0 or less: back inside). */
+  pull(dir: Dir, distance: number) {
+    if (this.#firing) return
+    clearTimeout(this.#idle)
+    cancelAnimationFrame(this.#raf)
+    if (distance <= 0 || !this.host.hasAdjacent(dir)) return this.reset()
+    this.#dir = dir
+    this.#progress = Math.min(1, distance / this.tuning.pullDistance)
+    this.host.render(dir, this.#progress)
+  }
+
+  /** Touch: the finger lifted. Full: go; otherwise spring back. */
+  release() {
+    if (this.#firing || !this.#dir) return
+    if (this.#progress >= 1) void this.#fire(this.#dir)
+    else this.#drain(180)
   }
 
   /** Hide immediately (chapter changed, mode switched…). */
