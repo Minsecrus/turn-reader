@@ -1,7 +1,13 @@
 name: Release
 
-# Push a tag like v0.1.0 to build the Windows installer and create a draft release.
-# The tag should match "version" in src-tauri/tauri.conf.json.
+# Push a tag like v0.1.0 to build the Windows installer and the Android APK and
+# create a draft release with both. The tag should match "version" in
+# src-tauri/tauri.conf.json.
+#
+# The APK is signed with the key in the ANDROID_KEYSTORE_BASE64 (the .jks file,
+# base64) and ANDROID_KEYSTORE_PASSWORD (store and key password, alias "turn")
+# repository secrets. Every release must use the same key, or installed copies
+# can't be updated.
 on:
   push:
     tags: ['v*']
@@ -13,6 +19,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      release-id: ${{ steps.tauri.outputs.releaseId }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +40,7 @@ jobs:
       - run: npm ci
 
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -39,7 +48,9 @@ jobs:
           tauriScript: npx tauri
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: Turn ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
-          releaseBody: 下载 `.exe` 安装包，双击安装即可。
+          releaseBody: |
+            - **Windows**：下载 `.exe` 安装包，双击安装。
+            - **Android**：下载 `.apk`，在手机上打开安装（首次需要允许“安装未知应用”）。
           releaseDraft: true
           prerelease: false
 
@@ -50,4 +61,78 @@ jobs:
         with:
           name: Turn-windows-x64-setup
           path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+  android:
+    # Waits for the Windows job, which creates the draft release the APK is attached to.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # 64-bit and 32-bit ARM: every phone that can run Turn.
+          targets: aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+
+      - run: npm ci
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD secrets are missing; an unsigned APK can't be installed."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/turn-release.jks"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/turn-release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=turn
+          keyPassword=$KEYSTORE_PASSWORD
+          EOF
+
+      - name: Build APK
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          npx tauri android build --apk --target aarch64 armv7
+
+      - name: Attach APK to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.build.outputs.release-id }}
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          name="Turn_${version}_android.apk"
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "$name"
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"$name" \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$name"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Turn-android-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
           if-no-files-found: warn

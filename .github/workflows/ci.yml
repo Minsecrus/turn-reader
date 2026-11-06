@@ -38,3 +38,35 @@ jobs:
       - name: Clippy
         working-directory: src-tauri
         run: cargo clippy --locked -- -D warnings
+
+  # The Android build of the Rust side (platform-specific code is cfg-gated).
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+
+      - run: npm ci
+
+      # dist/ is needed by tauri-build.
+      - run: npm run build
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --target aarch64-linux-android -- -D warnings
