@@ -29,6 +29,8 @@ export interface OverscrollTuning {
   maxShift: number
   /** Touch: drag distance past the boundary that fills the meter (px). */
   pullDistance: number
+  /** Touch: how far the page follows the finger when the meter is full (px). Room for the meter. */
+  pullShift: number
 }
 
 export const DEFAULT_TUNING: OverscrollTuning = {
@@ -38,6 +40,7 @@ export const DEFAULT_TUNING: OverscrollTuning = {
   decayMs: 320,
   maxShift: 44,
   pullDistance: 150,
+  pullShift: 120,
 }
 
 export type Dir = 1 | -1

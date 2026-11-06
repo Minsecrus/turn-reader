@@ -282,7 +282,8 @@ export class Reader {
         out = v.animate(
           [
             { transform: `translate3d(0, ${this.#shift}px, 0)`, opacity: 1 },
-            { transform: `translate3d(0, ${-dir * 32}px, 0)`, opacity: 0 },
+            // Touch has pulled the page far; it keeps going the same way.
+            { transform: `translate3d(0, ${this.#byTouch ? this.#shift - dir * 32 : -dir * 32}px, 0)`, opacity: 0 },
           ],
           { duration: 150, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' },
         )
@@ -342,7 +343,11 @@ export class Reader {
     meter.style.setProperty('--p', p.toFixed(3))
     meterFill.style.transform = `scaleX(${p})`
     if (v && !reducedMotion()) {
-      this.#shift = -dir * this.#overscroll.tuning.maxShift * easeOut(p)
+      const t = this.#overscroll.tuning
+      // A finger drags the page along, far enough to clear room for the meter,
+      // and past full it still gives a little (damped) instead of stopping dead.
+      const overshoot = Math.min(40, Math.max(0, (this.#pull?.distance ?? 0) - t.pullDistance) * 0.25)
+      this.#shift = this.#byTouch ? -dir * (t.pullShift * easeOut(p) + overshoot) : -dir * t.maxShift * easeOut(p)
       v.style.transform = `translate3d(0, ${this.#shift}px, 0)`
     }
   }
