@@ -1,5 +1,6 @@
 import 'foliate-js/view.js'
 import type { RelocateDetail, TocItem, View } from 'foliate-js/view.js'
+import { repairCJKDocument } from './cjk-fix'
 import { loadEpub, type LoadedBook } from './epub'
 import { ChapterOverscroll, type Dir } from './overscroll'
 import { android, insets } from './platform'
@@ -368,6 +369,7 @@ export class Reader {
   // ── Events ────────────────────────────────────────────────────────────────
 
   #onDocLoad(doc: Document) {
+    if (!this.view?.isFixedLayout) repairCJKDocument(doc)
     doc.addEventListener('keydown', e => this.on.key(e))
     doc.addEventListener('wheel', e => this.#onWheel(e), { passive: false })
     doc.addEventListener('click', e => this.#onClick(e, doc))
