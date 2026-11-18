@@ -26,6 +26,22 @@ export interface ReaderElements {
 
 const easeOut = (t: number) => 1 - (1 - t) ** 3
 
+export type TapZone = 'left' | 'center' | 'right'
+
+const TOUCH_ZONES: Record<TapZone, readonly [number, number]> = {
+  center: [0.3, 0.7], // 3 / 4 / 3
+  left: [0.4, 0.7],   // 4 / 3 / 3
+  right: [0.3, 0.6],  // 3 / 3 / 4
+}
+
+export function resolveTapAction(ratio: number, byTouch: boolean, scrolled: boolean, lastZone: TapZone): TapZone {
+  if (scrolled) return 'center'
+  const [left, right] = byTouch ? TOUCH_ZONES[lastZone] : [0.2, 0.8]
+  if (ratio < left) return 'left'
+  if (ratio > right) return 'right'
+  return 'center'
+}
+
 const setAttr = (el: Element, name: string, value: string) => {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value)
 }
@@ -51,6 +67,7 @@ export class Reader {
   #pull: { y: number; dir: Dir | 0; distance: number } | null = null
   /** The meter is being driven by touch (vs. the wheel), which changes its wording. */
   #byTouch = false
+  #lastTapZone: TapZone = 'center'
   #zoomAccum = 0
   #clickTimer: number | undefined
 
@@ -135,6 +152,7 @@ export class Reader {
     this.#titles.clear()
     this.#index = -1
     this.#queue = []
+    this.#lastTapZone = 'center'
   }
 
   applySettings(s: Settings) {
@@ -152,6 +170,7 @@ export class Reader {
       else setAttr(r, 'animated', '')
       if (r.getAttribute('flow') !== s.flow) {
         this.#overscroll.reset()
+        this.#lastTapZone = 'center'
         r.setAttribute('flow', s.flow)
       }
     }
@@ -424,13 +443,13 @@ export class Reader {
     const x = (frame?.getBoundingClientRect().left ?? 0) + e.clientX
     const w = window.innerWidth
     const v = this.view
-    // A finger is less precise than a mouse, so its page-turn zones are wider.
+    // A finger is less precise than a mouse, so its page-turn zones are wider
+    // and adapt to bias toward repeating the last tap zone.
     const byTouch = (e as PointerEvent).pointerType === 'touch'
-    const edge = byTouch ? 0.3 : 0.2
-    if (v && !this.scrolled) {
-      if (x < w * edge) return void this.#run(() => v.goLeft())
-      if (x > w * (1 - edge)) return void this.#run(() => v.goRight())
-    }
+    const zone = resolveTapAction(w > 0 ? x / w : 0.5, byTouch, !v || this.scrolled, this.#lastTapZone)
+    if (byTouch) this.#lastTapZone = zone
+    if (v && zone === 'left') return void this.#run(() => v.goLeft())
+    if (v && zone === 'right') return void this.#run(() => v.goRight())
     // Touch selects words by long-press, so a tap can act at once. A mouse
     // click waits, so that a double-click (word selection) cancels it.
     clearTimeout(this.#clickTimer)

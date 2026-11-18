@@ -168,7 +168,7 @@ export class SettingsPanel {
     )
 
     const version = h('span', { class: 'about-version' })
-    void opts.version.then(v => (version.textContent = `版本 ${v}`)).catch(() => {})
+    void opts.version.then(v => (version.textContent = `v${v}`)).catch(() => {})
     const about = h(
       'div',
       { class: 'page sub about-page', 'aria-hidden': 'true', 'aria-label': '关于' },

@@ -83,12 +83,25 @@ export async function loadEpub(path: string): Promise<LoadedBook> {
   }
 }
 
+const PLACEHOLDER_TITLES = new Set(['unknown', 'untitled', 'untitled book', 'no title'])
+
+export const isPlaceholderTitle = (title: string) => {
+  const t = title.trim().toLowerCase()
+  return !t || PLACEHOLDER_TITLES.has(t)
+}
+
+export function fallbackTitle(path: string) {
+  const name = path.split(/[\\/]/).pop()?.replace(/\.epub$/i, '').trim()
+  // Imported copies (Android) are named by content hash, which is no title.
+  return name && !/^[0-9a-f]{16}$/.test(name) ? name : '未命名'
+}
+
 const langString = (x: unknown): string => {
   if (!x) return ''
   if (typeof x === 'string') return x
   if (typeof x === 'object') {
-    const values = Object.values(x as Record<string, unknown>)
-    return typeof values[0] === 'string' ? values[0] : ''
+    const values = Object.values(x as Record<string, unknown>).filter((v): v is string => typeof v === 'string')
+    return values.find(v => !isPlaceholderTitle(v)) ?? values.find(v => v.trim()) ?? ''
   }
   return ''
 }
@@ -103,11 +116,9 @@ const contributor = (x: unknown): string => {
 
 export function bookInfo(book: Book, path: string) {
   const meta = book.metadata ?? {}
-  const name = path.split(/[\\/]/).pop()?.replace(/\.epub$/i, '')
-  // Imported copies (Android) are named by content hash, which is no title.
-  const fallback = name && !/^[0-9a-f]{16}$/.test(name) ? name : '未命名'
+  const raw = langString(meta.title).trim()
   return {
-    title: langString(meta.title).trim() || fallback,
+    title: isPlaceholderTitle(raw) ? fallbackTitle(path) : raw,
     author: contributor(meta.author).trim(),
   }
 }

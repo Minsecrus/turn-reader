@@ -1,3 +1,4 @@
+import { fallbackTitle, isPlaceholderTitle } from './epub'
 import { ipc } from './ipc'
 import type { OverscrollTuning } from './overscroll'
 import { DEFAULT_TUNING } from './overscroll'
@@ -19,6 +20,7 @@ export interface Settings {
 export interface BookRecord {
   path: string
   title: string
+  customTitle?: boolean
   author: string
   cover?: string
   cfi?: string
@@ -27,7 +29,7 @@ export interface BookRecord {
 }
 
 interface Persisted {
-  version: 1
+  version: number
   settings: Settings
   tuning: OverscrollTuning
   books: BookRecord[]
@@ -70,10 +72,29 @@ class Store {
       const raw = await ipc.loadState()
       if (!raw) return
       const data = JSON.parse(raw) as Partial<Persisted>
+      const ver = data.version ?? 1
       this.settings = { ...DEFAULT_SETTINGS, ...data.settings }
       this.tuning = { ...DEFAULT_TUNING, ...data.tuning }
+      let migrated = ver < 3
+      if (ver < 2) {
+        if (this.tuning.idleMs === 260) this.tuning.idleMs = DEFAULT_TUNING.idleMs
+        if (this.tuning.decayMs === 320) this.tuning.decayMs = DEFAULT_TUNING.decayMs
+      }
+      if (ver < 3 && this.tuning.maxShift === 44) {
+        this.tuning.maxShift = DEFAULT_TUNING.maxShift
+      }
       this.books = Array.isArray(data.books) ? data.books : []
+      for (const b of this.books) {
+        if (!b.customTitle && isPlaceholderTitle(b.title ?? '')) {
+          const next = fallbackTitle(b.path)
+          if (next !== b.title) {
+            b.title = next
+            migrated = true
+          }
+        }
+      }
       this.lastOpen = data.lastOpen ?? null
+      if (migrated) this.save()
     } catch (e) {
       console.error('Failed to load state', e)
     }
@@ -127,7 +148,7 @@ class Store {
   flush() {
     clearTimeout(this.#timer)
     const data: Persisted = {
-      version: 1,
+      version: 3,
       settings: this.settings,
       tuning: this.tuning,
       books: this.books,

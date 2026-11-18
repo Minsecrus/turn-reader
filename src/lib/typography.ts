@@ -63,12 +63,14 @@ export interface FontChoice {
 
 /** Kai is only offered where a Kai font exists (always on Windows, rarely on Android). */
 let fonts: { serif: FontChoice; sans: FontChoice; kai: FontChoice | null } | null = null
+let hasModernSerif = false
 
 export function fontChoices() {
   if (fonts) return fonts
   if (android) {
     // Android's generic families map Chinese to Noto Serif / Sans CJK.
     const kai = ['LXGW WenKai', 'LXGW WenKai Screen', '霞鹜文楷'].find(installed)
+    hasModernSerif = true
     fonts = {
       serif: { label: '宋体', css: 'serif' },
       sans: { label: '黑体', css: 'sans-serif' },
@@ -78,13 +80,28 @@ export function fontChoices() {
   }
   const serif = firstInstalled(
     ['Source Han Serif SC', 'Source Han Serif CN', 'Noto Serif SC', 'Noto Serif CJK SC', '思源宋体'],
-    'SimSun',
+    '',
   )
-  const kai = firstInstalled(['LXGW WenKai', 'LXGW WenKai Screen', '霞鹜文楷', 'KaiTi', 'STKaiti'], 'KaiTi')
+  const wenkai = firstInstalled(['LXGW WenKai', 'LXGW WenKai Screen', '霞鹜文楷'], '')
+  const kai = wenkai || firstInstalled(['KaiTi', 'STKaiti'], 'KaiTi')
+  hasModernSerif = !!serif
   fonts = {
-    serif: { label: '宋体', css: stack(serif, 'SimSun', 'serif') },
-    sans: { label: '黑体', css: stack('Microsoft YaHei UI', 'Microsoft YaHei', 'sans-serif') },
-    kai: { label: '楷体', css: stack(kai, 'KaiTi', 'serif') },
+    serif: {
+      label: '宋体',
+      css: serif
+        ? stack(serif, 'SimSun', 'serif')
+        : stack('Georgia', 'Cambria', 'Times New Roman', 'SimSun', 'serif'),
+    },
+    sans: {
+      label: '黑体',
+      css: stack('Inter', 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'sans-serif'),
+    },
+    kai: {
+      label: '楷体',
+      css: wenkai
+        ? stack(wenkai, 'KaiTi', 'serif')
+        : stack('Palatino Linotype', 'Georgia', ...(kai === 'KaiTi' ? ['KaiTi'] : [kai, 'KaiTi']), 'serif'),
+    },
   }
   return fonts
 }
@@ -94,7 +111,7 @@ const fontCSS = (key: Exclude<FontKey, 'book'>) => (fontChoices()[key] ?? fontCh
 /** Used when the book doesn't specify a font: a good serif if one is installed, else YaHei. */
 function fallbackFamily() {
   const f = fontChoices()
-  return f.serif.css.startsWith('"SimSun"') ? f.sans.css : f.serif.css
+  return hasModernSerif ? f.serif.css : f.sans.css
 }
 
 // ── Book CSS ────────────────────────────────────────────────────────────────

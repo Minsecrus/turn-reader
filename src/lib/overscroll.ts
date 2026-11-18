@@ -36,9 +36,9 @@ export interface OverscrollTuning {
 export const DEFAULT_TUNING: OverscrollTuning = {
   threshold: 380,
   arrivalCap: 0.3,
-  idleMs: 260,
-  decayMs: 320,
-  maxShift: 44,
+  idleMs: 480,
+  decayMs: 400,
+  maxShift: 76,
   pullDistance: 150,
   pullShift: 120,
 }

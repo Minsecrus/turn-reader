@@ -11,9 +11,21 @@ import { android, desktop, moveToBack, onInsetsChange, setSystemBars, touch } fr
 import { Reader } from './lib/reader'
 import { DEFAULT_SETTINGS, FONT_SIZE_MAX, FONT_SIZE_MIN, store, type BookRecord, type Settings } from './lib/store'
 import { onSystemThemeChange, PALETTES, resolveTheme } from './lib/typography'
-import { actionSheet, closeSheet, hideToast, sheetOpen, toast } from './ui/dom'
+import {
+  actionSheet,
+  closeDialog,
+  closeMenu,
+  closeSheet,
+  contextMenu,
+  dialogOpen,
+  hideToast,
+  menuOpen,
+  promptDialog,
+  sheetOpen,
+  toast,
+} from './ui/dom'
 import { icons } from './ui/icons'
-import { renderLibrary } from './ui/library'
+import { renderLibrary, type LibraryView } from './ui/library'
 import { SettingsPanel } from './ui/settings'
 import { TocPanel } from './ui/toc'
 import { mountTuning } from './ui/tuning'
@@ -29,6 +41,8 @@ const isUri = (s: string) => /^(content|file):/i.test(s)
 
 let reader: Reader
 let settingsPanel: SettingsPanel
+let libraryView: LibraryView | null = null
+let libraryQuery = ''
 let opening = false
 
 // ── Title bar ───────────────────────────────────────────────────────────────
@@ -231,17 +245,45 @@ function removeBook(path: string) {
   showLibrary()
 }
 
+function commitRename(b: BookRecord, title: string) {
+  if (!title || title === b.title) return
+  store.patch(b.path, { title, customTitle: true })
+}
+
+function promptRename(b: BookRecord) {
+  promptDialog({
+    title: '重命名',
+    value: b.title,
+    placeholder: '输入书名',
+    confirmLabel: '保存',
+    onConfirm: title => {
+      commitRename(b, title)
+      showLibrary()
+    },
+  })
+}
+
 function showLibrary() {
-  renderLibrary($('library'), store.books, {
+  libraryView = renderLibrary($('library'), store.books, {
     open: path => void openBook(path),
     remove: removeBook,
+    rename: commitRename,
     pick: () => void pickFile(),
+    query: libraryQuery,
+    onQuery: q => {
+      libraryQuery = q
+    },
     menu: touch
       ? (b: BookRecord) =>
           actionSheet(b.title, [
+            { label: '重命名', run: () => promptRename(b) },
             { label: '从书架移除', danger: true, run: () => removeBook(b.path) },
           ])
-      : undefined,
+      : (b: BookRecord, e: MouseEvent, startRename: () => void) =>
+          contextMenu(e.clientX, e.clientY, [
+            { label: '重命名', icon: icons.edit, run: startRename },
+            { label: '从书架移除', icon: icons.close, danger: true, run: () => removeBook(b.path) },
+          ]),
   })
 }
 
@@ -261,6 +303,7 @@ function goLibrary() {
   reader.close()
   store.lastOpen = null
   store.save()
+  libraryQuery = ''
   app.dataset.mode = 'library'
   app.classList.remove('chrome')
   $('tb-title').textContent = ''
@@ -310,15 +353,18 @@ async function openBook(path: string): Promise<boolean> {
     }
     const book = reader.view!.book
     const info = bookInfo(book, path)
-    store.upsert(path, info)
+    const title = rec?.customTitle && rec.title ? rec.title : info.title
+    store.upsert(path, { ...info, title })
     store.lastOpen = path
     store.save()
 
     closePanels()
     closeSheet()
+    closeMenu()
+    closeDialog()
     app.dataset.mode = 'reader'
-    $('tb-title').textContent = info.title
-    setTitle(`${info.title} — Turn`)
+    $('tb-title').textContent = title
+    setTitle(`${title} — Turn`)
     tocPanel.render(reader.toc)
     tocPanel.highlight(reader.location?.tocItem)
     keepChromeUntil = performance.now() + 1000
@@ -355,17 +401,38 @@ function onRelocate(d: RelocateDetail) {
 function onKey(e: KeyboardEvent) {
   if (e.defaultPrevented || e.isComposing) return
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+  if (dialogOpen()) {
+    if (key === 'Escape') {
+      closeDialog()
+      e.preventDefault()
+    }
+    return
+  }
+  if (menuOpen()) {
+    if (key === 'Escape') {
+      closeMenu()
+      e.preventDefault()
+    }
+    return
+  }
+  const target = e.target as Element | null
   const ctrl = e.ctrlKey || e.metaKey
   const reading = app.dataset.mode === 'reader'
+  if (ctrl && key === 'f' && !reading && !target?.classList.contains('card-title-edit') && libraryView?.focusSearch()) {
+    e.preventDefault()
+    return
+  }
+  if (target?.closest('input, textarea, select')) return
 
   const handled = (() => {
     if (ctrl && key === 'o') return void pickFile(), true
     if (ctrl && e.shiftKey && key === 'd') return app.classList.toggle('tuning-open'), true
     if (key === 'F11' && desktop) return void win.isFullscreen().then(fs => win.setFullscreen(!fs)), true
     if (key === 'Escape') {
-      // Esc steps back one level: shortcuts page → settings → closed → leave full screen.
+      // Esc steps back one level: shortcuts page → settings → closed → search → leave full screen.
       if (app.classList.contains('settings-open') && settingsPanel.onSubpage) settingsPanel.showMain()
       else if (panelsOpen()) closePanels()
+      else if (!reading && libraryView?.clearSearch()) return true
       else if (desktop) void win.isFullscreen().then(fs => (fs ? win.setFullscreen(false) : undefined))
       return true
     }
@@ -393,10 +460,13 @@ document.addEventListener('keydown', onKey)
 // Steps back one level: action sheet → settings page → panel → bookshelf → home screen.
 if (android)
   void onBackButtonPress(() => {
-    if (sheetOpen()) closeSheet()
+    if (dialogOpen()) closeDialog()
+    else if (menuOpen()) closeMenu()
+    else if (sheetOpen()) closeSheet()
     else if (app.classList.contains('settings-open') && settingsPanel.onSubpage) settingsPanel.showMain()
     else if (panelsOpen()) closePanels()
     else if (app.dataset.mode === 'reader') goLibrary()
+    else if (libraryView?.clearSearch()) return
     else {
       void store.flush()
       moveToBack()

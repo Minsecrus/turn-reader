@@ -8,6 +8,8 @@ export const icons = {
   toc: svg('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6" fill="currentColor"/><circle cx="4.5" cy="12" r=".6" fill="currentColor"/><circle cx="4.5" cy="18" r=".6" fill="currentColor"/>'),
   type: svg('<path d="M3.5 18 8 6h1l4.5 12"/><path d="M5.2 14h6.6"/><path d="M15 11.2c.7-.8 1.6-1.2 2.7-1.2 1.8 0 2.8 1 2.8 2.8V18"/><path d="M20.5 14.2c-.8-.3-1.6-.4-2.4-.4-1.7 0-3 .8-3 2.2 0 1.2.9 2 2.3 2 1.4 0 2.6-.8 3.1-2"/>'),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>', 14),
+  edit: svg('<path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m14.5 5.5 4 4"/>', 14),
+  search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m19.5 19.5-3.6-3.6"/>', 16),
   winMin: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg>',
   winMax: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x=".5" y=".5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/></svg>',
   winRestore:
